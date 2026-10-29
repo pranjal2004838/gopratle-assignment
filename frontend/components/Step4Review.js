@@ -35,7 +35,10 @@ export default function Step4Review({ formData, updateFormData, onBack, onReset 
     setSubmitting(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      let apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').trim().replace(/\/+$/, '');
+      if (!apiUrl.endsWith('/api') && !apiUrl.includes('localhost')) {
+        apiUrl += '/api';
+      }
 
       // send payload to backend
       const res = await fetch(`${apiUrl}/requirements`, {

@@ -16,7 +16,15 @@ export default function SubmissionsDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReq, setSelectedReq] = useState(null); // for detail modal
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const getNormalizedApiUrl = () => {
+    let url = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').trim().replace(/\/+$/, '');
+    if (!url.endsWith('/api') && !url.includes('localhost')) {
+      url += '/api';
+    }
+    return url;
+  };
+
+  const apiUrl = getNormalizedApiUrl();
 
   const fetchRequirements = async () => {
     setLoading(true);

@@ -17,17 +17,20 @@ connectDB();
 app.use(cors()); // allow cross origin requests
 app.use(express.json()); // parse incoming json bodies
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// Health check endpoints (both with and without /api prefix)
+const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date(),
     service: 'GoPratle Requirement Service'
   });
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
-// Main routes
+// Main routes (mount both with and without /api so any frontend env format works)
 app.use('/api/requirements', requirementRoutes);
+app.use('/requirements', requirementRoutes);
 
 // Simple catch-all 404
 app.use((req, res) => {
