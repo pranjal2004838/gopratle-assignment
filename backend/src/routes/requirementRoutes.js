@@ -1,199 +1,204 @@
-const express = require('express');
-const router = express.Router();
-const mongoose = require('mongoose');
-const Requirement = require('../models/Requirement');
+const express = require('express')
+const router = express.Router()
+const mongoose = require('mongoose')
+const Requirement = require('../models/Requirement')
 
-// In-memory fallback store in case MongoDB is not connected yet during testing/evaluation
-let memoryStore = [];
+// fallback store used when mongo isn't available — helpful for local dev without a DB setup
+let tempStore = []
 
-// Helper to check if real MongoDB is connected
-const isMongoConnected = () => mongoose.connection.readyState === 1;
+const mongoUp = () => mongoose.connection.readyState === 1
 
-// POST: Create a new requirement
+// ─────────────────────────────────────────────
+// POST /requirements  — create a new one
+// ─────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
-    const data = req.body;
+    const body = req.body
 
-    // basic validation checks for step 1 fields
-    if (!data.eventName || !data.eventType || !data.startDate || !data.location || !data.category) {
+    // quick check on required step-1 fields before doing anything else
+    if (!body.eventName || !body.eventType || !body.startDate || !body.location || !body.category) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields in Step 1 (eventName, eventType, startDate, location, category)'
-      });
+        message: 'Please fill in all required fields: eventName, eventType, startDate, location, category'
+      })
     }
 
-    const validCategories = ['planner', 'performer', 'crew'];
-    if (!validCategories.includes(data.category)) {
+    const allowed = ['planner', 'performer', 'crew']
+    if (!allowed.includes(body.category)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid category. Must be planner, performer, or crew.'
-      });
+        message: `Category must be one of: ${allowed.join(', ')}`
+      })
     }
 
-    // Build payload: only keep details for the chosen category
-    // This directly ensures the requirement is clearly categorised under the selected type
-    const payload = {
-      eventName: data.eventName,
-      eventType: data.eventType,
-      startDate: new Date(data.startDate),
-      endDate: data.endDate ? new Date(data.endDate) : null,
-      isDateRange: Boolean(data.isDateRange),
-      location: data.location,
-      venue: data.venue || '',
-      category: data.category,
-      contactInfo: data.contactInfo || {},
+    // build the doc - only attach the matching category details block
+    // the other two (e.g. performerDetails if category is 'crew') won't be saved
+    const doc = {
+      eventName: body.eventName,
+      eventType: body.eventType,
+      startDate: new Date(body.startDate),
+      endDate: body.endDate ? new Date(body.endDate) : null,
+      isDateRange: !!body.isDateRange,
+      location: body.location,
+      venue: body.venue || '',
+      category: body.category,
+      contactInfo: body.contactInfo || {},
       status: 'open'
-    };
-
-    if (data.category === 'planner') {
-      payload.plannerDetails = data.plannerDetails || {};
-    } else if (data.category === 'performer') {
-      payload.performerDetails = data.performerDetails || {};
-    } else if (data.category === 'crew') {
-      payload.crewDetails = data.crewDetails || {};
     }
 
-    let savedItem;
-
-    if (isMongoConnected()) {
-      // Real MongoDB
-      const newReq = new Requirement(payload);
-      savedItem = await newReq.save();
-      console.log(`[MongoDB] Saved new ${savedItem.category} requirement: "${savedItem.eventName}" (${savedItem._id})`);
+    if (body.category === 'planner') {
+      doc.plannerDetails = body.plannerDetails || {}
+    } else if (body.category === 'performer') {
+      doc.performerDetails = body.performerDetails || {}
     } else {
-      // In-memory fallback
-      savedItem = {
+      doc.crewDetails = body.crewDetails || {}
+    }
+
+    let saved
+
+    if (mongoUp()) {
+      const req = new Requirement(doc)
+      saved = await req.save()
+      console.log(`Saved [${saved.category}] requirement to MongoDB: "${saved.eventName}" — ${saved._id}`)
+    } else {
+      // this is a bit hacky but works fine for demo/testing purposes
+      saved = {
         _id: new mongoose.Types.ObjectId().toString(),
-        ...payload,
+        ...doc,
         createdAt: new Date(),
         updatedAt: new Date()
-      };
-      memoryStore.unshift(savedItem); // newest first
-      console.log(`[MemoryStore] Saved new ${savedItem.category} requirement: "${savedItem.eventName}" (${savedItem._id})`);
+      }
+      tempStore.unshift(saved)
+      console.log(`Saved [${saved.category}] requirement to memory: "${saved.eventName}"`)
     }
 
     return res.status(201).json({
       success: true,
       message: 'Requirement posted successfully!',
-      data: savedItem,
-      storage: isMongoConnected() ? 'mongodb' : 'memory-fallback'
-    });
+      data: saved,
+      storage: mongoUp() ? 'mongodb' : 'memory'
+    })
   } catch (err) {
-    console.error('Error saving requirement:', err);
+    console.error('POST /requirements error:', err.message)
     return res.status(500).json({
       success: false,
-      message: 'Server error while saving requirement',
+      message: 'Something went wrong while saving the requirement.',
       error: err.message
-    });
+    })
   }
-});
+})
 
-// GET: Fetch all requirements (with optional category filter & search)
+// ─────────────────────────────────────────────
+// GET /requirements  — list all, optional filter
+// ─────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const { category, search } = req.query;
+    const { category, search } = req.query
 
-    if (isMongoConnected()) {
-      let query = {};
+    if (mongoUp()) {
+      let filter = {}
 
       if (category && ['planner', 'performer', 'crew'].includes(category)) {
-        query.category = category;
+        filter.category = category
       }
 
-      if (search) {
-        query.$or = [
+      // simple search across event name and city
+      if (search && search.trim()) {
+        filter.$or = [
           { eventName: { $regex: search, $options: 'i' } },
           { location: { $regex: search, $options: 'i' } }
-        ];
+        ]
       }
 
-      const list = await Requirement.find(query).sort({ createdAt: -1 });
+      const results = await Requirement.find(filter).sort({ createdAt: -1 })
 
-      return res.status(200).json({
-        success: true,
-        count: list.length,
-        data: list,
-        storage: 'mongodb'
-      });
-    } else {
-      // Filter memoryStore
-      let results = [...memoryStore];
-
-      if (category && ['planner', 'performer', 'crew'].includes(category)) {
-        results = results.filter((item) => item.category === category);
-      }
-
-      if (search) {
-        const s = search.toLowerCase();
-        results = results.filter(
-          (item) =>
-            item.eventName.toLowerCase().includes(s) ||
-            item.location.toLowerCase().includes(s)
-        );
-      }
-
-      return res.status(200).json({
+      return res.json({
         success: true,
         count: results.length,
-        data: results,
-        storage: 'memory-fallback'
-      });
+        data: results
+      })
+    } else {
+      // filter the in-memory array manually
+      let results = [...tempStore]
+
+      if (category && ['planner', 'performer', 'crew'].includes(category)) {
+        results = results.filter(r => r.category === category)
+      }
+
+      if (search && search.trim()) {
+        const q = search.toLowerCase()
+        results = results.filter(r =>
+          r.eventName.toLowerCase().includes(q) ||
+          r.location.toLowerCase().includes(q)
+        )
+      }
+
+      return res.json({
+        success: true,
+        count: results.length,
+        data: results
+      })
     }
-  } catch (error) {
-    console.error('Error fetching requirements:', error);
+  } catch (err) {
+    console.error('GET /requirements error:', err.message)
     return res.status(500).json({
       success: false,
-      message: 'Failed to retrieve requirements',
-      error: error.message
-    });
+      message: 'Failed to load requirements',
+      error: err.message
+    })
   }
-});
+})
 
-// GET: Fetch single requirement by ID
+// ─────────────────────────────────────────────
+// GET /requirements/:id  — single item
+// ─────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params
 
-    if (isMongoConnected()) {
-      const item = await Requirement.findById(id);
+    if (mongoUp()) {
+      const item = await Requirement.findById(id)
       if (!item) {
-        return res.status(404).json({ success: false, message: 'Requirement not found' });
+        return res.status(404).json({ success: false, message: 'Requirement not found' })
       }
-      return res.json({ success: true, data: item });
+      return res.json({ success: true, data: item })
     } else {
-      const item = memoryStore.find((r) => r._id === id);
+      const item = tempStore.find(r => r._id === id)
       if (!item) {
-        return res.status(404).json({ success: false, message: 'Requirement not found' });
+        return res.status(404).json({ success: false, message: 'Requirement not found' })
       }
-      return res.json({ success: true, data: item });
+      return res.json({ success: true, data: item })
     }
   } catch (err) {
-    return res.status(400).json({ success: false, message: 'Invalid requirement ID format' });
+    // usually means bad ObjectId format
+    return res.status(400).json({ success: false, message: 'Invalid ID' })
   }
-});
+})
 
-// DELETE: Delete a requirement
+// ─────────────────────────────────────────────
+// DELETE /requirements/:id  — remove one
+// ─────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params
 
-    if (isMongoConnected()) {
-      const deleted = await Requirement.findByIdAndDelete(id);
-      if (!deleted) {
-        return res.status(404).json({ success: false, message: 'Not found' });
+    if (mongoUp()) {
+      const gone = await Requirement.findByIdAndDelete(id)
+      if (!gone) {
+        return res.status(404).json({ success: false, message: 'Not found' })
       }
-      return res.json({ success: true, message: 'Deleted successfully' });
+      return res.json({ success: true, message: 'Deleted' })
     } else {
-      const initialLen = memoryStore.length;
-      memoryStore = memoryStore.filter((r) => r._id !== id);
-      if (memoryStore.length === initialLen) {
-        return res.status(404).json({ success: false, message: 'Not found' });
+      const before = tempStore.length
+      tempStore = tempStore.filter(r => r._id !== id)
+      if (tempStore.length === before) {
+        return res.status(404).json({ success: false, message: 'Not found' })
       }
-      return res.json({ success: true, message: 'Deleted successfully' });
+      return res.json({ success: true, message: 'Deleted' })
     }
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message })
   }
-});
+})
 
-module.exports = router;
+module.exports = router

@@ -1,27 +1,27 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose')
 
-// Main requirement schema
-// Keeping category details in separate sub-documents so Mongo docs are clean and easy to inspect
+// I'm keeping all category-specific fields in their own sub-documents
+// instead of separate collections — easier to filter and display on the dashboard
 const requirementSchema = new mongoose.Schema(
   {
-    // Step 1: Event Basics
+    // Step 1 fields
     eventName: {
       type: String,
-      required: [true, 'Please provide an event name'],
-      trim: true,
+      required: [true, 'Event name is required'],
+      trim: true
     },
     eventType: {
       type: String,
-      required: [true, 'Please select or enter an event type'],
-      trim: true,
+      required: [true, 'Event type is required'],
+      trim: true
     },
     startDate: {
       type: Date,
-      required: [true, 'Start date is required'],
+      required: [true, 'Start date is required']
     },
     endDate: {
-      type: Date,
-      // only used if date range selected
+      type: Date
+      // only set if it's a multi-day event
     },
     isDateRange: {
       type: Boolean,
@@ -30,7 +30,7 @@ const requirementSchema = new mongoose.Schema(
     location: {
       type: String,
       required: [true, 'Location is required'],
-      trim: true,
+      trim: true
     },
     venue: {
       type: String,
@@ -40,42 +40,42 @@ const requirementSchema = new mongoose.Schema(
     category: {
       type: String,
       required: [true, 'Category is required'],
-      enum: ['planner', 'performer', 'crew'],
+      enum: ['planner', 'performer', 'crew']
     },
 
-    // Step 2 & 3: Category specific data
+    // Steps 2 & 3 — only one of these will have data depending on the category
     plannerDetails: {
-      serviceScope: String, // Full Planning, Partial, Day-of Coordination
+      serviceScope: String,     // Full Planning / Partial / Day-of Coordination
       guestCount: Number,
       themeOrVibe: String,
       budget: Number,
-      servicesNeeded: [String], // catering, decor, photography etc.
+      servicesNeeded: [String], // decor, catering, photography etc.
       specialNotes: String
     },
 
     performerDetails: {
-      performanceType: String, // Singer, DJ, Band, Comedian, etc.
-      duration: String, // e.g. "2 hours"
+      performanceType: String,        // Singer, DJ, Band, Comedian
+      duration: String,               // e.g. "2 - 3 Hours"
       performanceLanguage: String,
-      soundEquipmentProvided: String, // "Venue provides", "Performer brings", etc.
+      soundEquipmentProvided: String, // venue provides / performer brings / to discuss
       expectedBudget: Number,
       audienceProfile: String,
       specialRequests: String
     },
 
     crewDetails: {
-      crewRole: String, // Stagehand, Sound Tech, Usher, Security
+      crewRole: String,            // Stagehand, Sound Tech, Usher, Security etc.
       crewCount: Number,
       shiftTiming: String,
-      experienceLevel: String, // Beginner, Intermediate, Pro
+      experienceLevel: String,     // entry / mid / senior
       dressCode: String,
       dailyPayPerPerson: Number,
       specialInstructions: String
     },
 
-    // Contact details for poster
+    // optional contact info the organizer can fill in step 4
     contactInfo: {
-      organizerName: { type: String, default: 'Anonymous Organizer' },
+      organizerName: { type: String, default: '' },
       email: { type: String, default: '' },
       phone: { type: String, default: '' }
     },
@@ -89,9 +89,9 @@ const requirementSchema = new mongoose.Schema(
   {
     timestamps: true
   }
-);
+)
 
-// quick index to sort by newest first
-requirementSchema.index({ createdAt: -1 });
+// newest first by default
+requirementSchema.index({ createdAt: -1 })
 
-module.exports = mongoose.model('Requirement', requirementSchema);
+module.exports = mongoose.model('Requirement', requirementSchema)

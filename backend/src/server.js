@@ -1,46 +1,36 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const connectDB = require('./config/db');
-const requirementRoutes = require('./routes/requirementRoutes');
+const express = require('express')
+const cors = require('cors')
+const dotenv = require('dotenv')
+const connectDB = require('./config/db')
+const requirementRoutes = require('./routes/requirementRoutes')
 
-// Load environment variables
-dotenv.config();
+dotenv.config()
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const app = express()
+const PORT = process.env.PORT || 5000
 
-// Connect to MongoDB
-connectDB();
+connectDB()
 
-// Middlewares
-app.use(cors()); // allow cross origin requests
-app.use(express.json()); // parse incoming json bodies
+app.use(cors())
+app.use(express.json())
 
-// Health check endpoints (both with and without /api prefix)
-const healthHandler = (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date(),
-    service: 'GoPratle Requirement Service'
-  });
-};
-app.get('/health', healthHandler);
-app.get('/api/health', healthHandler);
+// simple health check — useful for verifying Render/Railway deploys
+const healthCheck = (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() })
+}
+app.get('/health', healthCheck)
+app.get('/api/health', healthCheck)
 
-// Main routes (mount both with and without /api so any frontend env format works)
-app.use('/api/requirements', requirementRoutes);
-app.use('/requirements', requirementRoutes);
+// mounting routes under both /api/requirements and /requirements
+// so it works regardless of how NEXT_PUBLIC_API_URL is set on Vercel
+app.use('/api/requirements', requirementRoutes)
+app.use('/requirements', requirementRoutes)
 
-// Simple catch-all 404
+// catch-all for unknown routes
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route not found: ${req.originalUrl}`
-  });
-});
+  res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` })
+})
 
-// Start listening
 app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+  console.log(`Server running on port ${PORT}`)
+})

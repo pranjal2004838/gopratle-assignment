@@ -1,17 +1,23 @@
-'use client';
+'use client'
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Sparkles, Calendar, Layers, ExternalLink } from 'lucide-react';
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Sparkles, Calendar, Layers } from 'lucide-react'
 
 export default function Navbar() {
-  const pathname = usePathname();
+  const path = usePathname()
+
+  const linkClass = (href) =>
+    `px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-sm ${
+      path === href
+        ? 'bg-indigo-50 text-indigo-700 font-semibold'
+        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+    }`
 
   return (
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        
-        {/* Brand */}
+
         <Link href="/" className="flex items-center gap-2.5 text-slate-900 group">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-sm shadow-indigo-200 group-hover:scale-105 transition-transform">
             <Sparkles className="w-5 h-5" />
@@ -24,28 +30,12 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Nav actions */}
-        <nav className="flex items-center gap-2 sm:gap-3 text-sm font-medium">
-          <Link
-            href="/"
-            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-              pathname === '/'
-                ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
+        <nav className="flex items-center gap-2">
+          <Link href="/" className={linkClass('/')}>
             <Calendar className="w-4 h-4" />
             <span>Post Requirement</span>
           </Link>
-
-          <Link
-            href="/submissions"
-            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-              pathname === '/submissions'
-                ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
+          <Link href="/submissions" className={linkClass('/submissions')}>
             <Layers className="w-4 h-4" />
             <span>Submissions</span>
           </Link>
@@ -53,5 +43,5 @@ export default function Navbar() {
 
       </div>
     </header>
-  );
+  )
 }
